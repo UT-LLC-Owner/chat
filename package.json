@@ -1,0 +1,15 @@
+{
+  "name": "@unsuccessful/chat",
+  "version": "1.0.0",
+  "description": "",
+  "main": "dist/index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git@github.com/Unsucessful/chat.git"
+  },
+  "author": "Unsuccessful Technologies LLC",
+  "license": "ISC"
+}
