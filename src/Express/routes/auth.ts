@@ -1,4 +1,4 @@
-const {users} = require('../../test/data')
+const {users} = require('../../../test/data')
 
 import {NextFunction, Request, Response, Router} from "express";
 

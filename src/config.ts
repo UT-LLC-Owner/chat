@@ -17,6 +17,7 @@ const GetArgVariables = () => {
 const { PORT, REDIS_HOST, REDIS_PORT } = GetArgVariables()
 
 const config = {
+    public: `${__dirname}/public`,
     port: PORT || process.env.PORT || 3000,
     redis: {
         host: REDIS_HOST || 'localhost',
