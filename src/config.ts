@@ -14,7 +14,10 @@ const GetArgVariables = () => {
 
 // Main Process
 
-const { PORT, REDIS_HOST, REDIS_PORT } = GetArgVariables()
+let { PORT, REDIS_HOST, REDIS_PORT, MONGO_USERNAME, MONGO_PASSWORD } = GetArgVariables()
+
+MONGO_USERNAME = MONGO_USERNAME ? MONGO_USERNAME: "guest"
+MONGO_PASSWORD = MONGO_PASSWORD ? MONGO_PASSWORD: "Password12"
 
 const config = {
     public: `${__dirname}/public`,
@@ -22,6 +25,10 @@ const config = {
     redis: {
         host: REDIS_HOST || 'localhost',
         port: REDIS_PORT || 6379
+    },
+    mongodb: {
+        url: `mongodb+srv://${MONGO_USERNAME}:${MONGO_PASSWORD}@development-4jc08.mongodb.net/Chat?retryWrites=true&w=majority`,
+        collections: ['Messages','Users']
     }
 }
 

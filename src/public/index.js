@@ -16,51 +16,47 @@ const config = {
     }
 }
 
-function DisplayFriends(config) {
+async function DisplayFriends(config) {
+    console.log(`${arguments.callee.name}:\t`,config)
     const { Me } = config
-    console.log(Me)
-    const friends = GetFriends()
+    const friends = await GetFriends()
     document.querySelector('#Login_Container').remove()
     const container = document.createElement('div')
     container.id = "friends_container"
     friends.forEach(friend => {
-        const link = CreateFriendLink(friend)
-        container.append(link)
+        if(friend._id !== Me._id){
+            const link = CreateFriendLink(friend)
+            container.append(link)
+        }
     })
     document.body.append(container)
 }
 
 function CreateFriendLink(config) {
-    const { name, _id} = config
+    console.log(`${arguments.callee.name}:\t`,config)
+    const { firstName, _id} = config
     const result = document.createElement('button')
 
     result.id = "Friend_Link_" + _id
-    result.textContent = name
+    result.textContent = firstName
 
     result.addEventListener('click',function (e) {
         e.preventDefault()
-        OpenMessage({recipient_id: _id, name})
+        OpenMessage({recipient_id: _id, name: firstName})
     })
 
     return result
 }
 
-function GetFriends() {
-    const result = [
-        {
-            _id: '1',
-            name: "Glen"
-        },
-        {
-            _id: '2',
-            name: "Casey"
-        },
-        {
-            _id: '3',
-            name: "Shelby"
-        }
-    ]
-    return result
+async function GetFriends() {
+    const api = new URL(config.url + "/users")
+    const params = { search: "cas" }
+    Object.keys(params).forEach(key => {
+        api.searchParams.append(key, params[key])
+    })
+    const response = await fetch(api)
+    const data = await response.json()
+    return data
 }
 
 function OpenMessage (config) {
@@ -79,7 +75,7 @@ function OpenMessage (config) {
     document.querySelector("#friends_container").remove()
     document.body.append(Header,List,Message,SendBtn)
 
-    SendBtn.addEventListener('click', function (e) {
+    SendBtn.addEventListener('click', (e) => {
         e.preventDefault()
         const msg = Message.value
         const data = {
@@ -137,7 +133,8 @@ function CreateLogin () {
         try {
             const response = await fetch(config.url + "/auth/login", options)
             const data = await response.json()
-            DisplayFriends({Me:data})
+            socket = getSocket(data._id)
+            await DisplayFriends({Me:data})
         } catch (e) {
             console.log(e)
         }
@@ -160,8 +157,8 @@ function AddToMessages(data, isMe) {
     Messages.append(listItem)
 }
 
-function getSocket() {
-    const socket = io(config.url, config.io.options)
+function getSocket(_id) {
+    const socket = io(config.url, createSocketOptions(_id))
     socket.on('receive message', function (data) {
         console.log(data)
         AddToMessages(data)
@@ -169,8 +166,7 @@ function getSocket() {
     return socket
 }
 
-function createSocketOptions(config) {
-    const { _id } = config
+function createSocketOptions(_id) {
     return {
         transportOptions: {
             polling: {
@@ -184,7 +180,6 @@ function createSocketOptions(config) {
 
 function Main() {
     CreateLogin()
-    socket = getSocket()
 }
 
 Main()
