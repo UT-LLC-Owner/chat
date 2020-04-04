@@ -1,5 +1,6 @@
-const friendId = window.location.search.slice((window.location.search.indexOf('id=') + 3))
-const myId = window.location.search.slice(6, window.location.search.indexOf('&id='))
+const _id = window.location.search.slice((window.location.search.indexOf('id=') + 3))
+let socket
+
 const config = {
     url: `http://localhost:3000`,
     io: {
@@ -7,7 +8,7 @@ const config = {
             transportOptions: {
                 polling: {
                     extraHeaders: {
-                        'x-unsuccessful': JSON.stringify({friendId, myId})
+                        'x-unsuccessful': JSON.stringify({_id})
                     }
                 }
             }
@@ -38,8 +39,7 @@ function CreateFriendLink(config) {
 
     result.addEventListener('click',function (e) {
         e.preventDefault()
-        console.log(name,_id)
-        OpenMessage({socket:getSocket(config), name})
+        OpenMessage({recipient_id: _id, name})
     })
 
     return result
@@ -48,11 +48,15 @@ function CreateFriendLink(config) {
 function GetFriends() {
     const result = [
         {
-            _id: 2,
+            _id: '1',
+            name: "Glen"
+        },
+        {
+            _id: '2',
             name: "Casey"
         },
         {
-            _id: 3,
+            _id: '3',
             name: "Shelby"
         }
     ]
@@ -60,7 +64,7 @@ function GetFriends() {
 }
 
 function OpenMessage (config) {
-    const { socket, name } = config
+    const { recipient_id, name } = config
     const SendBtn = document.createElement("button")
     const Message = document.createElement("input")
     const Header = document.createElement('h1')
@@ -79,11 +83,13 @@ function OpenMessage (config) {
         e.preventDefault()
         const msg = Message.value
         const data = {
-            name: myId,
+            sender_id: _id,
+            recipient_id,
+            name,
             msg
         }
         Message.value = ""
-        socket.emit('message', data)
+        socket.emit('send message', data)
         AddToMessages(data, true)
     })
 }
@@ -154,9 +160,9 @@ function AddToMessages(data, isMe) {
     Messages.append(listItem)
 }
 
-function getSocket(config) {
-    const socket = io(config.url, createSocketOptions(config))
-    socket.on('message', function (data) {
+function getSocket() {
+    const socket = io(config.url, config.io.options)
+    socket.on('receive message', function (data) {
         console.log(data)
         AddToMessages(data)
     })
@@ -164,12 +170,12 @@ function getSocket(config) {
 }
 
 function createSocketOptions(config) {
-    const { friendId, myId } = config
+    const { _id } = config
     return {
         transportOptions: {
             polling: {
                 extraHeaders: {
-                    'x-unsuccessful': JSON.stringify({friendId, myId})
+                    'x-unsuccessful': JSON.stringify({_id})
                 }
             }
         }
@@ -178,6 +184,7 @@ function createSocketOptions(config) {
 
 function Main() {
     CreateLogin()
+    socket = getSocket()
 }
 
 Main()
