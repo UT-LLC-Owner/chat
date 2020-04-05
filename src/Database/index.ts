@@ -1,5 +1,6 @@
-import {FindUsersPayload, GetUserPayload, MessagePayload} from "../interfaces";
-import {ObjectId, Collection, MongoClient, Db} from "mongodb";
+import {FindUsersPayload, GetUserPayload, MessageDocument, MessagePayload} from "../interfaces";
+import { MongoClient, Db} from "mongodb";
+import { ObjectId, Timestamp } from "bson";
 import config from "../config";
 
 let db: Db
@@ -16,17 +17,53 @@ const StartDB = async () => {
 
 export default StartDB
 
+export const MessageDoc = (payload: MessagePayload): MessageDocument => {
+    const _id = new ObjectId()
+    const result: MessageDocument = {
+        ...payload,
+        read: false,
+        _id,
+        timestamp: _id.getTimestamp()
+    }
+    result.sender_id = new ObjectId(result.sender_id)
+    result.recipient_id = new ObjectId(result.recipient_id)
+    return result
+}
 
-export const PutMessage = async (payload: MessagePayload) => {
-    payload.read = false
-
+export const PutMessage = async (doc: MessageDocument) => {
     try {
         const Messages = db.collection('Messages')
-        const response = await Messages.insertOne(payload)
-        console.log(response.result)
+        const response = await Messages.insertOne(doc)
+        return response
     } catch (e) {
         console.log(e)
     }
+}
+
+export const GetUnreadMessages = async (_id: string) => {
+    const Messages = db.collection('Messages')
+    const pipeline = [
+        {
+            $match: { recipient_id: new ObjectId(_id), read: false}
+        },
+        {
+            $sort: { timestamp: 1 }
+        },
+        {
+            $group: {
+                _id: "$sender_id",
+                messages: {
+                    $addToSet: {
+                        msg: "$msg",
+                        date: {$dateToString:{date:"$timestamp", format: "%Y-%m-%d"}},
+                        time: {$dateToString:{date:"$timestamp", format: "%H:%M"}}
+                    }
+                }
+            }
+        }
+    ]
+
+    return await Messages.aggregate(pipeline).toArray()
 }
 
 

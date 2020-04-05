@@ -1,7 +1,7 @@
 import {Server, Socket} from "socket.io";
 import config from "../config";
 import server from "../Express";
-import {PutMessage} from "../Database";
+import {MessageDoc, PutMessage} from "../Database";
 import {MessagePayload} from "../interfaces";
 const redis = require('socket.io-redis')
 const SocketIO = require('socket.io')
@@ -18,11 +18,14 @@ const PrepareIO = (io: Server): void => {
         socket.on('send message', (payload: MessagePayload) => {
             const { recipient_id } = payload
             const ExistingRooms: string[] = Object.keys(io.sockets.adapter.rooms)
-            PutMessage(payload).catch(e => console.log(e))
-            if(ExistingRooms.includes(recipient_id)){
-                socket.to(recipient_id).emit('receive message', payload)
+            const doc = MessageDoc(payload)
+            if(ExistingRooms.includes(recipient_id as string)){
+                socket.to(recipient_id as string).emit('receive message', doc)
             }
+            PutMessage(doc).catch(e => console.log(e))
         })
+
+        //TODO message read Event
     })
 }
 

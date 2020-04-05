@@ -1,4 +1,4 @@
-const _id = window.location.search.slice((window.location.search.indexOf('id=') + 3))
+let _id
 let socket
 
 const config = {
@@ -133,6 +133,7 @@ function CreateLogin () {
         try {
             const response = await fetch(config.url + "/auth/login", options)
             const data = await response.json()
+            _id = data._id
             socket = getSocket(data._id)
             await DisplayFriends({Me:data})
         } catch (e) {
