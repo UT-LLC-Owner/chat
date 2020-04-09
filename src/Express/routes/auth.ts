@@ -1,5 +1,5 @@
 import {NextFunction, Request, Response, Router} from "express";
-import {GetUnreadMessages, GetUserByFirstName} from "../../Database";
+import {GetMessages, GetUserByFirstName} from "../../Database";
 
 const router = Router()
 
@@ -8,10 +8,10 @@ const Login = async (req: Request, res: Response, next: NextFunction) => {
     const user = await GetUserByFirstName(name)
 
     if(user){
-        const NewMessages = await GetUnreadMessages(user._id)
+        const NewMessages = await GetMessages(user._id)
         const result = {
             ...user,
-            unread: NewMessages
+            messages: NewMessages
         }
         res.status(200).json(result)
     } else {

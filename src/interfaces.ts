@@ -7,6 +7,7 @@ export interface MessagePayload {
 }
 
 export interface MessageDocument extends MessagePayload{
+    conversation_id: ObjectId
     read: boolean;
     _id: ObjectId;
     timestamp: Date;
