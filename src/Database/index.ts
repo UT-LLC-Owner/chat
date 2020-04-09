@@ -64,7 +64,7 @@ export const GetConversationID = async (participant_ids: (string)[]): Promise<Ob
     }
     const response = await Messages.findOne(query, {fields:{conversation_id: 1}})
     console.log(response)
-    const conversation_id = response.conversation_id ? new ObjectId(response.conversation_id) : new ObjectId()
+    const conversation_id = (response && response.conversation_id) ? new ObjectId(response.conversation_id) : new ObjectId()
     return conversation_id
 }
 

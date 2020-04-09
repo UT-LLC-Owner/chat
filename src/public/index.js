@@ -104,10 +104,7 @@ function NewMessage(e) {
     e.preventDefault()
     const root = GetRoot()
     console.log(`${arguments.callee.name}:\t`, e)
-    const SingleMessageCard = document.createElement('div')
-    SingleMessageCard.id = "single_message_card"
-    SingleMessageCard.classList.add("card")
-    SingleMessageCard.style.flex = "3"
+    const SingleMessageCard = CreateSingleMessageCard()
     SingleMessageCard.innerHTML = `
         <div class="card-body">
             <form id="newMessage">
@@ -130,9 +127,27 @@ function NewMessage(e) {
     input.addEventListener('input', SearchUser)
 }
 
+function CreateSingleMessageCard(){
+    const result = document.createElement('div')
+    result.id = "single_message_card"
+    result.classList.add("card")
+    result.style.flex = "3"
+    return result
+}
+
 function SubmitNewMessage(e){
     e.preventDefault()
-    console.log(e.target['name'].value,e.target['message'].value)
+    const name = e.target['name'].value
+    const msg = e.target['message'].value
+    const recipient_id = e.target['name'].dataset.id
+    const data = {
+        sender_id: _id,
+        recipient_id,
+        name,
+        msg
+    }
+    socket.emit('send message', data)
+    OpenMessage({recipient_id, name, messages:[data]})
 }
 
 async function GetMessages() {
@@ -189,6 +204,27 @@ function CreateSuggestion(config){
     result.classList.add('p-1')
     result.style.backgroundColor = "#fff"
     result.style.borderBottom = "1px solid #d4d4d4"
+    result.style.textTransform = 'capitalize'
+    result.addEventListener('click', function(e){
+        e.preventDefault()
+        document.querySelector('#name_suggestions').remove()
+        const selectedName = document.createElement('input')
+        selectedName.id = 'name'
+        selectedName.readOnly = true
+        selectedName.value = firstName
+        selectedName.setAttribute('data-id',_id)
+        selectedName.classList.add('btn','btn-primary')
+        selectedName.style.textTransform = 'capitalize'
+        console.log(selectedName)
+        const input = document.querySelector('#name')
+        input.replaceWith(selectedName)
+        selectedName.addEventListener('click',function (e) {
+            e.preventDefault()
+            input.value = ''
+            selectedName.replaceWith(input)
+        })
+
+    })
     return result
 }
 
@@ -204,63 +240,81 @@ function PutConversationToStorage(config) {
 }
 
 function OpenMessage (config) {
-    const { recipient_id, name, unread } = config
-    const SendBtn = document.createElement("button")
-    const Message = document.createElement("input")
-    const Header = document.createElement('h1')
-    const List = document.createElement("ul")
-    SendBtn.id = 'send'
-    Message.id = 'msg'
-    List.id = 'messages'
-    Header.textContent = "Message With " + name
-    List.style.width = "100%"
-    SendBtn.textContent = "Send"
+    const { recipient_id, name, messages } = config
 
-    document.querySelector("#friends_container").remove()
-    document.body.append(Header,List,Message,SendBtn)
-
-    PutConversationToStorage({recipient_id, name})
-
-    if(unread){
-        const _ids = []
-        unread.forEach(x => {
-            AddToMessages({...x,name})
-            _ids.push(x._id)
-        })
-        MessagesRead({_ids})
+    const Messages = document.querySelector("#messages_card")
+    const CurrentMessageCard = Messages.nextElementSibling
+    if(!CurrentMessageCard){
+        const SingleMessageCard = CreateSingleMessageCard()
+        SetMessageCardHTML(SingleMessageCard, config)
+        Messages.insertAdjacentElement('afterend', SingleMessageCard)
+    } else {
+        SetMessageCardHTML(CurrentMessageCard, config)
     }
 
-    SendBtn.addEventListener('click', (e) => {
+    messages.forEach(x => {
+        AddToMessages(x)
+    })
+
+    document.forms['message_to_send'].addEventListener('submit', (e) => {
         e.preventDefault()
-        const msg = Message.value
+        const msg = e.target['msg'].value
+        e.target['msg'].value = ""
         const data = {
             sender_id: _id,
             recipient_id,
             name,
             msg
         }
-        Message.value = ""
+        console.log(data)
         socket.emit('send message', data)
-        AddToMessages(data, true)
+        AddToMessages(data)
     })
+
 }
 
-function AddToMessages(data, isMe) {
-    const { name, msg, _id, date, time } = data
-    const Messages = document.querySelector('#messages')
+function SetMessageCardHTML(element, config){
+    const {recipient_id,name} = config
 
-    let listItem = document.createElement('li')
-    let textAlign = (isMe) ? "right" : "left"
-    listItem.innerHTML = `
-        <div style="display: flex; flex-direction: row; flex-wrap: nowrap; justify-content: center; width: 100%">
-            <div style="flex: 1;">${(isMe) ? '': name}</div>
-            <div style="flex: 5; text-align: ${textAlign}; padding-right: 20px">${msg}</div>
-            <div style="flex: 1;">${new Date(date ? `${date} ${time} GMT`: Date.now()).toLocaleTimeString()}</div>
+    element.innerHTML = `
+        <div class="card-body">
+            <div class="p-2 mb-2 border-bottom d-flex flex-row justify-content-end">
+                <h1 class="font-weight-bold" style="text-transform: capitalize">${name}</h1>
+            </div>
+            <div id="conversation" class="container-fluid" data-id="${recipient_id}">
+            </div>
+            <form id="message_to_send">
+                <div class="form-group">
+                    <input type="text" class="form-control" id="msg" placeholder="Message..." autocomplete="off">
+                </div>
+                <button type="submit" class="btn btn-primary btn-small">Send</button>
+            </form>
         </div>
     `
-    listItem.style.width = "100%"
-    listItem.style.listStyle = "none"
-    Messages.append(listItem)
+
+    return element
+}
+
+function AddToMessages(data) {
+    const { sender_id, recipient_id, msg, timestamp } = data
+    const isMe = sender_id === _id
+    const CurrentConversation = document.querySelector('#conversation')
+    const current_recipient = CurrentConversation.dataset.id
+    if(current_recipient === recipient_id || current_recipient === sender_id){
+        const message = document.createElement('div')
+        message.classList.add('d-flex','flex-row')
+        if(isMe){
+            message.classList.add('justify-content-end')
+        } else {
+            message.classList.add('justify-content-start')
+        }
+        message.innerHTML = `
+            <h3><span class="badge ${isMe ? "badge-primary":"badge-secondary"}">${msg}</span></h3>
+        `
+        CurrentConversation.append(message)
+    } else {
+        //TODO add to correct messages item
+    }
 }
 
 function MessagesRead(config) {

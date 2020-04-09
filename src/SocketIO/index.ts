@@ -16,6 +16,7 @@ const PrepareIO = (io: Server): void => {
         socket.join(_id)
 
         socket.on('send message', async (payload: MessagePayload) => {
+            console.log(payload)
             const { recipient_id } = payload
             const ExistingRooms: string[] = Object.keys(io.sockets.adapter.rooms)
             const doc = await MessageDoc(payload)
