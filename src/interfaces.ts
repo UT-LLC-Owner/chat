@@ -21,3 +21,9 @@ export interface GetUserPayload {
     _id: string;
     firstName: string;
 }
+
+export interface GetConversationConfig {
+    _id: string;
+    page: number;
+    items: number;
+}

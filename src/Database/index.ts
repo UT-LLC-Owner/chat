@@ -1,4 +1,4 @@
-import {FindUsersPayload, GetUserPayload, MessageDocument, MessagePayload} from "../interfaces";
+import {FindUsersPayload, GetConversationConfig, GetUserPayload, MessageDocument, MessagePayload} from "../interfaces";
 import { MongoClient, Db} from "mongodb";
 import { ObjectId, Timestamp } from "bson";
 import config from "../config";
@@ -68,7 +68,21 @@ export const GetConversationID = async (participant_ids: (string)[]): Promise<Ob
     return conversation_id
 }
 
-export const GetMessages = async (_id: string) => {
+export const GetConversation = async (config: GetConversationConfig) => {
+    const Messages = db.collection('Messages')
+    const {_id, page, items} = config
+    const limit = (items < 1) ? 10 : items
+    const skip = (page - 1) * limit
+    const options = {skip, limit}
+    const conversation_id = new ObjectId(_id)
+    const query = {conversation_id}
+
+    const messages = await Messages.find(query,options).toArray()
+    console.log(messages)
+    return messages
+}
+
+export const GetConversations = async (_id: string) => {
     const Messages = db.collection('Messages')
     const MyID = new ObjectId(_id)
     const pipeline = [
@@ -80,10 +94,11 @@ export const GetMessages = async (_id: string) => {
         },
         {
             $group: {
-                _id: {conversation_id:"$conversation_id"},
+                _id: "$conversation_id",
                 count: { $sum: 1 },
                 participant_1: { $first: "$sender_id"},
-                participant_2: { $first: "$recipient_id"}
+                participant_2: { $first: "$recipient_id"},
+                last_message: { $last: "$msg"}
             }
         },
         {
@@ -101,11 +116,70 @@ export const GetMessages = async (_id: string) => {
                 foreignField: "_id",
                 as: "participant_2_data"
             }
+        },
+        {
+            $project: {
+                participant_1: 1,
+                participant_2: 1,
+                last_message: 1,
+                participant_1_data: { $arrayElemAt: ["$participant_1_data", 0] },
+                participant_2_data: { $arrayElemAt: ["$participant_2_data", 0] }
+            }
         }
     ]
     const result = await Messages.aggregate(pipeline).toArray()
     console.log(result)
     return result
+}
+
+export const GetConversationData = async (_id: string) => {
+    const Messages = db.collection('Messages')
+    const conversation_id = new ObjectId(_id)
+    const pipeline = [
+        {
+            $match: {conversation_id}
+        },
+        {
+            $sort: { timestamp: 1 }
+        },
+        {
+            $group: {
+                _id: "$conversation_id",
+                count: { $sum: 1 },
+                participant_1: { $first: "$sender_id"},
+                participant_2: { $first: "$recipient_id"},
+                last_message: { $last: "$msg"}
+            }
+        },
+        {
+            $lookup: {
+                from: "Users",
+                localField: "participant_1",
+                foreignField: "_id",
+                as: "participant_1_data"
+            }
+        },
+        {
+            $lookup: {
+                from: "Users",
+                localField: "participant_2",
+                foreignField: "_id",
+                as: "participant_2_data"
+            }
+        },
+        {
+            $project: {
+                participant_1: 1,
+                participant_2: 1,
+                last_message: 1,
+                participant_1_data: { $arrayElemAt: ["$participant_1_data", 0] },
+                participant_2_data: { $arrayElemAt: ["$participant_2_data", 0] }
+            }
+        }
+    ]
+    const result = await Messages.aggregate(pipeline).toArray()
+    console.log(result)
+    return result[0]
 }
 
 export const MessagesRead = async (_ids: string[]) => {
@@ -136,5 +210,10 @@ const GetUser = async (query: {[propName:string]: any}) => {
 
 export const GetUserByFirstName = async (firstName: string) => {
     const query = {firstName}
+    return GetUser(query)
+}
+
+export const GetUserByID = async (_id: string) => {
+    const query = {_id}
     return GetUser(query)
 }

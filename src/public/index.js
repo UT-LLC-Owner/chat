@@ -1,7 +1,7 @@
 let _id
 let socket
 
-const config = {
+const global_config = {
     url: `http://localhost:3000`,
     io: {
         options: {
@@ -48,7 +48,7 @@ async function SubmitLogin(e) {
         })
     }
     try {
-        const response = await fetch(config.url + "/auth/login", options)
+        const response = await fetch(global_config.url + "/auth/login", options)
         const data = await response.json()
         _id = data._id
         socket = getSocket(data._id)
@@ -72,32 +72,146 @@ async function GoToMessages(config) {
                 <h1 class="font-weight-bold">Messages</h1>
                 <button id="new_message" class="btn btn-success btn-small">New Message</button>
             </div>
+            <div id="conversations" class="card">
+                <ul class="list-group list-group-flush">
+                
+                </ul>
+            </div>
         </div>
     `
     root.append(MessagesCard)
-    const CardBody = document.querySelector("#messages_card .card-body")
-    user.messages.forEach(message => {
-        const MessageLink = CreateMessageLink(message)
-        CardBody.append(MessageLink)
-    })
     document.querySelector("#new_message").addEventListener('click', NewMessage)
+
+    const list = document.querySelector("#conversations ul")
+    user.conversations.forEach(convo => {
+        const ConvoLink = CreateConvoLink(convo)
+        list.append(ConvoLink)
+    })
 }
 
-function CreateMessageLink(config) {
+function CreateConvoLink(config) {
     console.log(`${arguments.callee.name}:\t`,config)
-    const { name, unread, _id, last_message } = config
+    const {participant_1, last_message } = config
+    const FriendIndex = (participant_1 === _id) ? "participant_2_data" : "participant_1_data"
+    const conversation_id = config._id
+    const result = document.createElement('li')
+    const name = config[FriendIndex].firstName
+    const recipient_id = config[FriendIndex]._id
 
-    const result = document.createElement('button')
+    result.id = `convo_${conversation_id}`
+    result.classList.add('list-group-item')
+    result.innerHTML = `
+        <h3 style="text-transform: capitalize">${name}</h3>
+        <p>${last_message}</p>
+    `
 
-    result.id = "Friend_Link_" + _id
-    result.textContent = name
-
-    result.addEventListener('click',function (e) {
+    result.addEventListener('click',async function (e) {
         e.preventDefault()
-        OpenMessage({recipient_id: _id, name, unread: unread ? unread.messages : null})
+        const response = await fetch(`${global_config.url}/users/conversations/${conversation_id}`)
+        const messages = await response.json()
+        const config = {conversation_id, recipient_id, name, messages }
+        OpenMessage(config)
     })
 
     return result
+}
+
+function AddToMessages(config) {
+    console.log(`${arguments.callee.name}:\t`,config)
+    const { sender_id, recipient_id, msg, timestamp, conversation_id } = config
+    const isMe = sender_id === _id
+    const CurrentConversation = document.querySelector('#conversation')
+    const current_recipient = (CurrentConversation) ? CurrentConversation.dataset.id : null
+    if(current_recipient === recipient_id || current_recipient === sender_id){
+        const message = document.createElement('div')
+        CurrentConversation.append(message)
+        message.style.width = "100%"
+        message.classList.add('d-flex','flex-row')
+        if(isMe){
+            message.classList.add('justify-content-end')
+        } else {
+            message.classList.add('justify-content-start')
+        }
+        message.innerHTML = `
+            <h3 style="max-width: 75%"><span style="white-space: normal; text-align: left; line-height: 1.2;" class="badge ${isMe ? "badge-primary":"badge-secondary"}">${msg}</span></h3>
+        `
+    } else {
+        if(!conversation_id){
+            throw new Error('conversation_id is null or undefined')
+        } else {
+            const previewMessage = document.querySelector(`#convo_${conversation_id} p`)
+            if(previewMessage){
+                previewMessage.textContent = msg
+            } else {
+                NewConversationMessage(config)
+            }
+        }
+    }
+}
+
+async function NewConversationMessage(config) {
+    const { conversation_id } = config
+    const response = await fetch(`${global_config.url}/users/conversations/${conversation_id}/data`)
+    const data = await response.json()
+    const list = document.querySelector("#conversations ul")
+    list.append(CreateConvoLink(data))
+}
+
+
+function OpenMessage (config) {
+    console.log(`${arguments.callee.name}:\t`,config)
+    const { recipient_id, name, messages } = config
+    const Messages = document.querySelector("#messages_card")
+    const CurrentMessageCard = Messages.nextElementSibling
+    if(!CurrentMessageCard){
+        const SingleMessageCard = CreateSingleMessageCard()
+        SetMessageCardHTML(SingleMessageCard, config)
+        Messages.insertAdjacentElement('afterend', SingleMessageCard)
+    } else {
+        SetMessageCardHTML(CurrentMessageCard, config)
+    }
+
+    messages.forEach(x => {
+        AddToMessages(x)
+    })
+
+    document.forms['message_to_send'].addEventListener('submit', (e) => {
+        e.preventDefault()
+        const msg = e.target['msg'].value
+        e.target['msg'].value = ""
+        const data = {
+            sender_id: _id,
+            recipient_id,
+            name,
+            msg
+        }
+        console.log(data)
+        socket.emit('send message', data)
+        AddToMessages(data)
+    })
+
+}
+
+function SetMessageCardHTML(element, config){
+    const {recipient_id,name} = config
+
+    element.innerHTML = `
+        <div class="card-body">
+            <div class="p-2 mb-2 border-bottom d-flex flex-row justify-content-end">
+                <h1 class="font-weight-bold" style="text-transform: capitalize">${name}</h1>
+            </div>
+            <div id="conversation" class="container-fluid" data-id="${recipient_id}">
+            </div>
+            <form id="message_to_send">
+                <div class="form-group">
+                    <input type="text" class="form-control" id="msg" placeholder="Message..." autocomplete="off">
+                </div>
+                <button type="submit" class="btn btn-primary btn-small">Send</button>
+            </form>
+        </div>
+    `
+
+    return element
 }
 
 function NewMessage(e) {
@@ -150,22 +264,10 @@ function SubmitNewMessage(e){
     OpenMessage({recipient_id, name, messages:[data]})
 }
 
-async function GetMessages() {
-
-    const api = new URL(config.url + "/users")
-    const params = { search: "cas" }
-    Object.keys(params).forEach(key => {
-        api.searchParams.append(key, params[key])
-    })
-    const response = await fetch(api)
-    const data = await response.json()
-    return data
-}
-
 async function SearchUser(e) {
     const input = e.target
     const { value } = input
-    const api = new URL(config.url + "/users")
+    const api = new URL(global_config.url + "/users")
     const params = { search: value }
     Object.keys(params).forEach(key => {
         api.searchParams.append(key, params[key])
@@ -239,90 +341,15 @@ function PutConversationToStorage(config) {
     window.sessionStorage.setItem(key, JSON.stringify(conversations))
 }
 
-function OpenMessage (config) {
-    const { recipient_id, name, messages } = config
 
-    const Messages = document.querySelector("#messages_card")
-    const CurrentMessageCard = Messages.nextElementSibling
-    if(!CurrentMessageCard){
-        const SingleMessageCard = CreateSingleMessageCard()
-        SetMessageCardHTML(SingleMessageCard, config)
-        Messages.insertAdjacentElement('afterend', SingleMessageCard)
-    } else {
-        SetMessageCardHTML(CurrentMessageCard, config)
-    }
 
-    messages.forEach(x => {
-        AddToMessages(x)
-    })
-
-    document.forms['message_to_send'].addEventListener('submit', (e) => {
-        e.preventDefault()
-        const msg = e.target['msg'].value
-        e.target['msg'].value = ""
-        const data = {
-            sender_id: _id,
-            recipient_id,
-            name,
-            msg
-        }
-        console.log(data)
-        socket.emit('send message', data)
-        AddToMessages(data)
-    })
-
-}
-
-function SetMessageCardHTML(element, config){
-    const {recipient_id,name} = config
-
-    element.innerHTML = `
-        <div class="card-body">
-            <div class="p-2 mb-2 border-bottom d-flex flex-row justify-content-end">
-                <h1 class="font-weight-bold" style="text-transform: capitalize">${name}</h1>
-            </div>
-            <div id="conversation" class="container-fluid" data-id="${recipient_id}">
-            </div>
-            <form id="message_to_send">
-                <div class="form-group">
-                    <input type="text" class="form-control" id="msg" placeholder="Message..." autocomplete="off">
-                </div>
-                <button type="submit" class="btn btn-primary btn-small">Send</button>
-            </form>
-        </div>
-    `
-
-    return element
-}
-
-function AddToMessages(data) {
-    const { sender_id, recipient_id, msg, timestamp } = data
-    const isMe = sender_id === _id
-    const CurrentConversation = document.querySelector('#conversation')
-    const current_recipient = CurrentConversation.dataset.id
-    if(current_recipient === recipient_id || current_recipient === sender_id){
-        const message = document.createElement('div')
-        message.classList.add('d-flex','flex-row')
-        if(isMe){
-            message.classList.add('justify-content-end')
-        } else {
-            message.classList.add('justify-content-start')
-        }
-        message.innerHTML = `
-            <h3><span class="badge ${isMe ? "badge-primary":"badge-secondary"}">${msg}</span></h3>
-        `
-        CurrentConversation.append(message)
-    } else {
-        //TODO add to correct messages item
-    }
-}
 
 function MessagesRead(config) {
     socket.emit("message read", config)
 }
 
 function getSocket(_id) {
-    const socket = io(config.url, createSocketOptions(_id))
+    const socket = io(global_config.url, createSocketOptions(_id))
     socket.on('receive message', function (data) {
         console.log(data)
         AddToMessages(data)

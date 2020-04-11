@@ -1,5 +1,5 @@
 import {NextFunction, Request, Response, Router} from "express";
-import {GetMessages, GetUserByFirstName} from "../../Database";
+import {GetConversations, GetUserByFirstName} from "../../Database";
 
 const router = Router()
 
@@ -8,10 +8,10 @@ const Login = async (req: Request, res: Response, next: NextFunction) => {
     const user = await GetUserByFirstName(name)
 
     if(user){
-        const NewMessages = await GetMessages(user._id)
+        const Conversations = await GetConversations(user._id)
         const result = {
             ...user,
-            messages: NewMessages
+            conversations: Conversations
         }
         res.status(200).json(result)
     } else {
